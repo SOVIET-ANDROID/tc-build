@@ -89,7 +89,7 @@ function set_default_values() {
 
 function setup_up_path() {
     # Add the default install bin folder to PATH for binutils
-    export PATH=$tc_bld/install/bin:$PATH
+    export PATH=${CBL_TC_BNTL:-$tc_bld/install/bin}:$PATH
 
     # Add the stage 2 bin folder to PATH for the instrumented clang if we are doing PGO
     ${pgo:=false} && export PATH=${build_folder:=$tc_bld/build/llvm}/stage2/bin:$PATH
