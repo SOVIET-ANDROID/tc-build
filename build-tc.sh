@@ -38,13 +38,13 @@ rel_friendly_date="$(date "+%B %-d, %Y")" # "Month day, year" format
 builder_commit="$(git rev-parse HEAD)"
 
 # Send a notificaton to TG
-tg_post_msg "<b>Azure Clang Compilation Started</b>%0A<b>Date : </b><code>$rel_friendly_date</code>%0A<b>Toolchain Script Commit : </b><code>$builder_commit</code>%0A"
+tg_post_msg "<b>Soviet Clang Compilation Started</b>%0A<b>Date : </b><code>$rel_friendly_date</code>%0A<b>Toolchain Script Commit : </b><code>$builder_commit</code>%0A"
 
 # Build LLVM
 msg "Building LLVM..."
 tg_post_msg "<code>Building LLVM</code>"
 ./build-llvm.py \
-	--clang-vendor "Azure" \
+	--clang-vendor "Soviet" \
 	--defines "LLVM_PARALLEL_COMPILE_JOBS=$(nproc) LLVM_PARALLEL_LINK_JOBS=$(nproc) CMAKE_C_FLAGS=-O3 CMAKE_CXX_FLAGS=-O3" \
 	--incremental \
 	--lto thin \
@@ -52,7 +52,6 @@ tg_post_msg "<code>Building LLVM</code>"
 	--pgo kernel-defconfig \
 	--shallow-clone \
 	--targets "ARM;AArch64" 2>&1 | tee build.log
-	 
 
 # Check if the final clang binary exists or not.
 [ ! -f install/bin/clang-1* ] && {
@@ -94,13 +93,13 @@ llvm_commit_url="https://github.com/llvm/llvm-project/commit/$short_llvm_commit"
 binutils_ver="$(ls | grep "^binutils-" | sed "s/binutils-//g")"
 clang_version="$(install/bin/clang --version | head -n1 | cut -d' ' -f4)"
 
-tg_post_msg "<b>Azure clang compilation Finished</b>%0A<b>Clang Version : </b><code>$clang_version</code>%0A<b>LLVM Commit : </b><code>$llvm_commit_url</code>%0A<b>Binutils Version : </b><code>$binutils_ver</code>"
+tg_post_msg "<b>Soviet clang compilation Finished</b>%0A<b>Clang Version : </b><code>$clang_version</code>%0A<b>LLVM Commit : </b><code>$llvm_commit_url</code>%0A<b>Binutils Version : </b><code>$binutils_ver</code>"
 
 # Push to GitHub
 # Update Git repository
-git config --global user.name "Panchajanya1999"
-git config --global user.email "rsk52959@gmail.com"
-git clone "https://Panchajanya1999:$GITLAB_TOKEN@gitlab.com/Panchajanya1999/azure-clang.git" rel_repo
+git config --global user.name "kondors1995"
+git config --global user.email "normandija1945@gmail.com"
+git clone "https://kondors1995:$GITLAB_TOKEN@gitlab.com/kondors1995/soviet-clang.git" rel_repo
 pushd rel_repo || exit
 rm -fr ./*
 cp -r ../install/* .
@@ -111,7 +110,7 @@ git commit -asm "Update to $rel_date build
 LLVM commit: $llvm_commit_url
 Clang Version: $clang_version
 Binutils version: $binutils_ver
-Builder commit: https://github.com/Panchajanya1999/tc-build/commit/$builder_commit"
+Builder commit: https://github.com/SOVIET-ANDROID/tc-build/commit/$builder_commit"
 
 # Downgrade the HTTP version to 1.1
 git config --global http.version HTTP/1.1
