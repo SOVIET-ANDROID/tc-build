@@ -124,11 +124,11 @@ function setup_krnl_src() {
         cd "$kernel_src" || exit
     else
         linux="linux-6.0"
-        linux_tarball=$krnl/$linux.tar.xz
+        linux_tarball=$krnl/$linux.tar.gz
 
         # If we don't have the source tarball, download and verify it
         if [[ ! -f $linux_tarball ]]; then
-            curl -LSso "$linux_tarball" https://cdn.kernel.org/pub/linux/kernel/v6.x/"${linux_tarball##*/}"
+            curl -LSso "$linux_tarball" https://git.kernel.org/torvalds/t/"${linux_tarball##*/}"
 
             (
                 cd "${linux_tarball%/*}" || exit
@@ -145,7 +145,7 @@ function setup_krnl_src() {
             [[ ${src_file##*/} = *.patch ]] && patch_files+=("$src_file")
         done
         [[ -n "${patch_files[*]}" ]] && rm -rf $linux
-        [[ -d $linux ]] || { tar -xf "$linux_tarball" || exit; }
+        [[ -d $linux ]] || { tar -xzf "$linux_tarball" || exit; }
         cd $linux || exit
         for patch_file in "${patch_files[@]}"; do
             apply_patch "$patch_file"
