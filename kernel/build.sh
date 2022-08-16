@@ -182,12 +182,20 @@ function can_use_llvm_ias() {
             fi
             ;;
 
-        hexagon* | mips* | riscv*)
+        hexagon* | mips* | riscv* | s390*)
             # All supported versions of LLVM for building the kernel
             return 0
             ;;
 
-        powerpc* | s390*)
+        powerpc64le-linux-gnu)
+            if [[ $llvm_version -ge 140000 ]]; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+
+        powerpc*)
             # No supported versions of LLVM for building the kernel
             return 1
             ;;
@@ -322,6 +330,8 @@ function build_kernels() {
                 ;;
 
             powerpc64le-linux-gnu)
+                # https://github.com/ClangBuiltLinux/linux/issues/1601
+                echo "${make[*]}" | grep -q CROSS_COMPILE || make+=(CROSS_COMPILE="$target-")
                 time "${make[@]}" \
                     ARCH=powerpc \
                     distclean powernv_defconfig all || exit
