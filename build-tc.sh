@@ -25,10 +25,9 @@ msg "Building LLVM..."
 	--incremental \
 	--lto thin \
 	--projects "clang;lld;polly;compiler-rt" \
-	--pgo kernel-defconfig \
+	--pgo "kernel-defconfig-slim" \
 	--shallow-clone \
 	--targets "ARM;AArch64" 2>&1 | tee build.log
-	 
 
 # Check if the final clang binary exists or not.
 [ ! -f install/bin/clang-1* ] && {
