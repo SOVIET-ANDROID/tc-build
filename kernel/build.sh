@@ -89,7 +89,7 @@ function set_default_values() {
 
 function setup_up_path() {
     # Add the default install bin folder to PATH for binutils
-    export PATH=$tc_bld/install/bin:$PATH
+    export PATH=${CBL_TC_BNTL:-$tc_bld/install/bin}:$PATH
 
     # Add the stage 2 bin folder to PATH for the instrumented clang if we are doing PGO
     ${pgo:=false} && export PATH=${build_folder:=$tc_bld/build/llvm}/stage2/bin:$PATH
@@ -123,12 +123,12 @@ function setup_krnl_src() {
     if [[ -n $kernel_src ]]; then
         cd "$kernel_src" || exit
     else
-        linux="linux-5.18"
-        linux_tarball=$krnl/$linux.tar.xz
+        linux="linux-6.0"
+        linux_tarball=$krnl/$linux.tar.gz
 
         # If we don't have the source tarball, download and verify it
         if [[ ! -f $linux_tarball ]]; then
-            curl -LSso "$linux_tarball" https://cdn.kernel.org/pub/linux/kernel/v5.x/"${linux_tarball##*/}"
+            curl -LSso "$linux_tarball" https://git.kernel.org/torvalds/t/"${linux_tarball##*/}"
 
             (
                 cd "${linux_tarball%/*}" || exit
@@ -145,7 +145,7 @@ function setup_krnl_src() {
             [[ ${src_file##*/} = *.patch ]] && patch_files+=("$src_file")
         done
         [[ -n "${patch_files[*]}" ]] && rm -rf $linux
-        [[ -d $linux ]] || { tar -xf "$linux_tarball" || exit; }
+        [[ -d $linux ]] || { tar -xzf "$linux_tarball" || exit; }
         cd $linux || exit
         for patch_file in "${patch_files[@]}"; do
             apply_patch "$patch_file"
@@ -153,14 +153,15 @@ function setup_krnl_src() {
     fi
 }
 
+function set_llvm_version() {
+    llvm_version=$("$tc_bld"/clang-version.sh clang)
+}
+
 # Can the requested architecture use LLVM_IAS=1? This assumes that if the user
 # is passing in their own kernel source via '-k', it is either the same or a
 # newer version as the one that the script downloads to avoid having a two
 # variable matrix.
 function can_use_llvm_ias() {
-    local llvm_version
-    llvm_version=$("$tc_bld"/clang-version.sh clang)
-
     case $1 in
         # https://github.com/ClangBuiltLinux/linux/issues?q=is%3Aissue+label%3A%22%5BARCH%5D+arm32%22+label%3A%22%5BTOOL%5D+integrated-as%22+
         arm*)
@@ -181,12 +182,20 @@ function can_use_llvm_ias() {
             fi
             ;;
 
-        hexagon* | mips* | riscv*)
+        hexagon* | mips* | riscv* | s390*)
             # All supported versions of LLVM for building the kernel
             return 0
             ;;
 
-        powerpc* | s390*)
+        powerpc64le-linux-gnu)
+            if [[ $llvm_version -ge 140000 ]]; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+
+        powerpc*)
             # No supported versions of LLVM for building the kernel
             return 1
             ;;
@@ -310,7 +319,7 @@ function build_kernels() {
             powerpc-linux-gnu)
                 time "${make[@]}" \
                     ARCH=powerpc \
-                    distclean ppc44x_defconfig all || exit
+                    distclean pmac32_defconfig all || exit
                 ;;
 
             powerpc64-linux-gnu)
@@ -321,6 +330,8 @@ function build_kernels() {
                 ;;
 
             powerpc64le-linux-gnu)
+                # https://github.com/ClangBuiltLinux/linux/issues/1601
+                echo "${make[*]}" | grep -q CROSS_COMPILE || make+=(CROSS_COMPILE="$target-")
                 time "${make[@]}" \
                     ARCH=powerpc \
                     distclean powernv_defconfig all || exit
@@ -333,6 +344,9 @@ function build_kernels() {
                 ;;
 
             s390x-linux-gnu)
+                # https://git.kernel.org/linus/8218827b73c6e41029438a2d3cc573286beee914
+                [[ $llvm_version -lt 140000 ]] && continue
+
                 time "${make[@]}" \
                     ARCH=s390 \
                     LD="$target-ld" \
@@ -354,6 +368,7 @@ parse_parameters "$@"
 set_default_values
 setup_up_path
 setup_krnl_src
+set_llvm_version
 check_binutils
 print_tc_info
 build_kernels

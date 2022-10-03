@@ -51,6 +51,14 @@ def parse_parameters(root_folder):
     :return: A 'Namespace' object with all the options parsed from supplied parameters
     """
     parser = argparse.ArgumentParser()
+    parser.add_argument("-b",
+                        "--binutils-folder",
+                        help="""
+                        By default, the script will clone the binutils-gdb repo into the tc-build repo. If you have
+                        another binutils-gdb checkout that you would like to work out of, pass it to this parameter.
+                        This can be either an absolute or relative path.
+                        """,
+                        type=str)
     parser.add_argument("-B",
                         "--build-folder",
                         help="""
@@ -76,8 +84,8 @@ def parse_parameters(root_folder):
                         "--targets",
                         help="""
                         The script can build binutils targeting arm-linux-gnueabi, aarch64-linux-gnu,
-                        mipsel-linux-gnu, powerpc-linux-gnu, powerpc64-linux-gnu, powerpc64le-linux-gnu,
-                        riscv64-linux-gnu, s390x-linux-gnu, and x86_64-linux-gnu.
+                        m68k-linux-gnu, mipsel-linux-gnu, powerpc-linux-gnu, powerpc64-linux-gnu,
+                        powerpc64le-linux-gnu, riscv64-linux-gnu, s390x-linux-gnu, and x86_64-linux-gnu.
 
                         You can either pass the full target or just the first part (arm, aarch64, x86_64, etc)
                         or all if you want to build all targets (which is the default). It will only add the
@@ -92,6 +100,18 @@ def parse_parameters(root_folder):
                         host processor.
                         """,
                         type=str)
+    parser.add_argument("-s",
+                        "--skip-install",
+                        help="""
+                        Skip installing binutils into INSTALL_FOLDER
+                        """,
+                        action="store_true")
+    parser.add_argument("-u",
+                        "--update",
+                        help="""
+                        Update the binutils repos before building.
+                        """,
+                        action="store_true")
     return parser.parse_args()
 
 
@@ -104,6 +124,7 @@ def create_targets(targets):
     targets_dict = {
         "arm": "arm-linux-gnueabi",
         "aarch64": "aarch64-linux-gnu",
+        "m68k": "m68k-linux-gnu",
         "mips": "mips-linux-gnu",
         "mipsel": "mipsel-linux-gnu",
         "powerpc64": "powerpc64-linux-gnu",
@@ -137,24 +158,25 @@ def cleanup(build_folder):
     build_folder.mkdir(parents=True, exist_ok=True)
 
 
-def invoke_configure(build_folder, install_folder, root_folder, target,
+def invoke_configure(binutils_folder, build_folder, install_folder, target,
                      host_arch):
     """
     Invokes the configure script to generate a Makefile
+    :param: binutils_folder: binutils source directory
     :param build_folder: Build directory
     :param install_folder: Directory to install binutils to
-    :param root_folder: Working directory
     :param target: Target to compile for
     :param host_arch: Host architecture to optimize for
     """
     configure = [
-        root_folder.joinpath(utils.current_binutils(), "configure").as_posix(),
-        'CC=gcc', 'CXX=g++', '--disable-compressed-debug-sections',
-        '--disable-gdb', '--disable-werror', '--enable-deterministic-archives',
+        root_folder.joinpath("binutils", "configure").as_posix(), 'CC=gcc',
+        'CXX=g++', '--disable-compressed-debug-sections', '--disable-gdb',
+        '--disable-werror', '--enable-deterministic-archives',
         '--enable-new-dtags', '--enable-plugins', '--enable-threads',
-        '--prefix=%s' % install_folder.as_posix(), '--quiet',
-        '--with-system-zlib'
+        '--quiet', '--with-system-zlib'
     ]
+    if install_folder:
+        configure += ['--prefix=%s' % install_folder.as_posix()]
     if host_arch:
         configure += [
             'CFLAGS=-O3 -march=%s -mtune=%s' % (host_arch, host_arch),
@@ -214,27 +236,30 @@ def invoke_make(build_folder, install_folder, target):
                        check=True,
                        cwd=build_folder.as_posix())
     subprocess.run(make, check=True, cwd=build_folder.as_posix())
-    subprocess.run(make + ['prefix=%s' % install_folder.as_posix(), 'install'],
-                   check=True,
-                   cwd=build_folder.as_posix())
-    with install_folder.joinpath(".gitignore").open("w") as gitignore:
-        gitignore.write("*")
+    if install_folder:
+        subprocess.run(make +
+                       ['prefix=%s' % install_folder.as_posix(), 'install'],
+                       check=True,
+                       cwd=build_folder.as_posix())
+        with install_folder.joinpath(".gitignore").open("w") as gitignore:
+            gitignore.write("*")
 
 
-def build_targets(build, install_folder, root_folder, targets, host_arch):
+def build_targets(binutils_folder, build_folder_base, install_folder, targets,
+                  host_arch):
     """
     Builds binutils for all specified targets
-    :param build: Build directory
+    :param: binutils_folder: binutils source directory
+    :param build_folder_base: Base build directory
     :param install_folder: Directory to install binutils to
-    :param root_folder: Working directory
     :param targets: Targets to compile binutils for
     :param host_arch: Host architecture to optimize for
     :return:
     """
     for target in targets:
-        build_folder = build.joinpath(target)
+        build_folder = build_folder_base.joinpath(target)
         cleanup(build_folder)
-        invoke_configure(build_folder, install_folder, root_folder, target,
+        invoke_configure(binutils_folder, build_folder, install_folder, target,
                          host_arch)
         invoke_make(build_folder, install_folder, target)
 
@@ -244,21 +269,30 @@ def main():
 
     args = parse_parameters(root_folder)
 
+    if args.binutils_folder:
+        binutils_folder = pathlib.Path(args.binutils_folder)
+        if not binutils_folder.is_absolute():
+            binutils_folder = root_folder.joinpath(binutils_folder)
+    else:
+        binutils_folder = root_folder.joinpath("binutils")
+        utils.fetch_binutils(root_folder, args.update)
+
     build_folder = pathlib.Path(args.build_folder)
     if not build_folder.is_absolute():
         build_folder = root_folder.joinpath(build_folder)
 
-    install_folder = pathlib.Path(args.install_folder)
-    if not install_folder.is_absolute():
-        install_folder = root_folder.joinpath(install_folder)
+    if args.skip_install:
+        install_folder = None
+    else:
+        install_folder = pathlib.Path(args.install_folder)
+        if not install_folder.is_absolute():
+            install_folder = root_folder.joinpath(install_folder)
 
     targets = ["all"]
     if args.targets is not None:
         targets = args.targets
 
-    utils.download_binutils(root_folder)
-
-    build_targets(build_folder, install_folder, root_folder,
+    build_targets(binutils_folder, build_folder, install_folder,
                   create_targets(targets), args.march)
 
 
