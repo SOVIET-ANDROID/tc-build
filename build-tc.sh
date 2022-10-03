@@ -20,15 +20,17 @@ builder_commit="$(git rev-parse HEAD)"
 # Build LLVM
 msg "Building LLVM..."
 ./build-llvm.py \
+	--update \
+	--update-llvm \
+	--update-binutils \
 	--clang-vendor "Soviet" \
 	--defines LLVM_PARALLEL_COMPILE_JOBS=$(nproc) LLVM_PARALLEL_LINK_JOBS=$(nproc) CMAKE_C_FLAGS=-O3 CMAKE_CXX_FLAGS=-O3 \
 	--incremental \
-	--lto thin \
-	--projects "clang;lld;polly;compiler-rt" \
-	--pgo kernel-defconfig \
-	--shallow-clone \
+	--projects "clang;lld;polly;bolt;X86" \
+	--bolt \
+    	--lto "thin" \
+    	--pgo "kernel-defconfig-slim" \
 	--targets "ARM;AArch64" 2>&1 | tee build.log
-	 
 
 # Check if the final clang binary exists or not.
 [ ! -f install/bin/clang-1* ] && {
