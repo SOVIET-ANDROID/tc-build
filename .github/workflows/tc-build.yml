@@ -1,0 +1,21 @@
+name: LLVM_Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 */3 * *' # At 00:00 (midnight) every 3days
+
+env:
+    GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: |
+        bash ci.sh deps
+    - name: Run Building
+      run: |
+        bash build-tc.sh
