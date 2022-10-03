@@ -6,7 +6,7 @@ on:
     - cron: '0 0 */3 * *' # At 00:00 (midnight) every 3days
 
 env:
-    GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
 
 jobs:
   build:
